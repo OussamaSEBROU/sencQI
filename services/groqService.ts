@@ -1,6 +1,8 @@
 import Groq from "groq-sdk";
+import * as pdfjsLib from "pdfjs-dist";
 import { Axiom, Language } from "../types";
-import { translations } from "../translations";
+// تهيئة worker لـ PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 // --- Types for local state ---
 interface ChatSession {
     history: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -9,7 +11,6 @@ let chatSession: ChatSession | null = null;
 let manuscriptSnippets: string[] = [];
 let documentChunks: string[] = [];
 let fullManuscriptText: string = "";
-let currentPdfBase64: string | null = null;
 let manuscriptMetadata: { title?: string; author?: string; chapters?: string; summary?: string } = {};
 let manuscriptAxioms: Axiom[] = []; // Global Context Layer
 // إدارة حدود الـ API (خلف الكواليس)
@@ -45,7 +46,38 @@ export const getGroqClient = () => {
         dangerouslyAllowBrowser: true
     });
 };
+// استخدام نموذج نصي قوي للتحليل
 const MODEL_NAME = "meta-llama/llama-4-maverick-17b-128e-instruct";
+/**
+ * استخراج النص من PDF باستخدام pdf.js
+ */
+const extractTextFromPDF = async (pdfBase64: string): Promise<string> => {
+    try {
+        // تحويل base64 إلى ArrayBuffer
+        const binaryString = atob(pdfBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        // تحميل PDF
+        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        const pdf = await loadingTask.promise;
+        let fullText = "";
+        // استخراج النص من كل صفحة
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items
+                .map((item: any) => item.str)
+                .join(" ");
+            fullText += pageText + "\n\n";
+        }
+        return fullText.trim();
+    } catch (error) {
+        console.error("Error extracting text from PDF:", error);
+        throw new Error("PDF_TEXT_EXTRACTION_FAILED");
+    }
+};
 /**
  * استراتيجية التقطيع لضمان جودة السياق
  */
@@ -97,36 +129,39 @@ export const extractAxioms = async (pdfBase64: string, lang: Language): Promise<
         await throttleRequest();
         const groq = getGroqClient();
         chatSession = null;
-        currentPdfBase64 = pdfBase64;
-        const combinedPrompt = `1. Extract exactly 13 high-quality 'Knowledge Axioms' from this manuscript.
-2. Extract 10 short, profound, and useful snippets or quotes DIRECTLY from the text (verbatim).
-3. Extract the FULL TEXT of this PDF accurately.
-4. Identify the Title, Author, and a brief list of Chapters/Structure.
-IMPORTANT: The 'axioms', 'snippets', and 'metadata' MUST be in the SAME LANGUAGE as the PDF manuscript itself.
-Return ONLY JSON with this structure:
+        // استخراج النص من PDF أولاً
+        console.log("Extracting text from PDF...");
+        const extractedText = await extractTextFromPDF(pdfBase64);
+        console.log("Text extracted, length:", extractedText.length);
+        // حفظ النص الكامل
+        fullManuscriptText = extractedText;
+        documentChunks = chunkText(fullManuscriptText);
+        // تحديد كمية النص للإرسال (أول 15000 حرف لتوفير التوكنز)
+        const textForAnalysis = extractedText.substring(0, 15000);
+        const combinedPrompt = `Analyze this manuscript text and extract:
+1. Exactly 13 high-quality 'Knowledge Axioms' (key concepts, definitions, and their significance).
+2. 10 short, profound snippets or quotes DIRECTLY from the text (verbatim).
+3. The Title, Author, and a brief list of Chapters/Structure.
+MANUSCRIPT TEXT:
+${textForAnalysis}
+IMPORTANT: The 'axioms', 'snippets', and 'metadata' MUST be in the SAME LANGUAGE as the manuscript itself.
+Return ONLY valid JSON with this structure:
 {
   "axioms": [{ "term": "...", "definition": "...", "significance": "..." }],
   "snippets": ["..."],
-  "metadata": { "title": "...", "author": "...", "chapters": "..." },
-  "fullText": "..."
+  "metadata": { "title": "...", "author": "...", "chapters": "..." }
 }`;
-        // Llama-4 Maverick supports vision/image inputs via standard OpenAI-compatible message structure
         const response = await groq.chat.completions.create({
             model: MODEL_NAME,
             messages: [
                 {
-                    role: "user",
-                    // @ts-ignore
-                    content: [
-                        { type: "text", text: getSystemInstruction(lang) + "\n\n" + combinedPrompt },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: `data:application/pdf;base64,${pdfBase64}`,
-                            },
-                        },
-                    ],
+                    role: "system",
+                    content: getSystemInstruction(lang)
                 },
+                {
+                    role: "user",
+                    content: combinedPrompt
+                }
             ],
             response_format: { type: "json_object" },
             temperature: 0.2,
@@ -135,12 +170,8 @@ Return ONLY JSON with this structure:
         if (!contentWrapper) throw new Error("No content returned from Groq");
         const result = JSON.parse(contentWrapper);
         manuscriptSnippets = result.snippets || [];
-        fullManuscriptText = result.fullText || "";
         manuscriptMetadata = result.metadata || {};
         manuscriptAxioms = result.axioms || []; // Store Axioms Globally
-        documentChunks = chunkText(fullManuscriptText);
-        // توفير التوكنز: مسح الـ PDF بعد الاستخراج الأول
-        currentPdfBase64 = null;
         return result.axioms;
     } catch (error: any) {
         console.error("Error in extractAxioms:", error);
