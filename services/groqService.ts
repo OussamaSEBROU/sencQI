@@ -1,9 +1,10 @@
 import Groq from "groq-sdk";
 import * as pdfjsLib from "pdfjs-dist";
 import { Axiom, Language } from "../types";
-// تعطيل الـ Worker لتجنب مشاكل CORS - سيعمل بشكل أبطأ قليلاً لكنه موثوق
+// استيراد الـ Worker بشكل صحيح لـ Vite
 // @ts-ignore
-pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 // --- Types for local state ---
 interface ChatSession {
     history: Array<{ role: "system" | "user" | "assistant"; content: string }>;
