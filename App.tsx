@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Axiom, PDFData, Language } from './types';
 import { extractAxioms } from './services/groqService';
@@ -7,7 +6,6 @@ import ChatInterface from './components/ChatInterface';
 import Sidebar from './components/Sidebar';
 import ManuscriptViewer from './components/ManuscriptViewer';
 import { translations } from './translations';
-
 // مصفوفة المقولات المختارة بعناية من المصادر المحددة
 const quotes = {
   en: [
@@ -72,7 +70,6 @@ const quotes = {
     "التقنية ليست مجرد أدوات، بل هي نمط من الوجود يتطلب وعياً أخلاقياً. — طه عبد الرحمن"
   ]
 };
-
 // نصوص الحالة التقنية
 const statusMessages = {
   en: [
@@ -94,7 +91,6 @@ const statusMessages = {
     "إتمام المزامنة العصبية..."
   ]
 };
-
 const App: React.FC = () => {
   const [pdf, setPdf] = useState<PDFData | null>(null);
   const [axioms, setAxioms] = useState<Axiom[]>([]);
@@ -104,19 +100,15 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
-
   const [flowStep, setFlowStep] = useState<'axioms' | 'chat'>('axioms');
   const [showViewer, setShowViewer] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
-
   const t = translations[lang];
-
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isSynthesizing) {
       setCurrentQuoteIndex(Math.floor(Math.random() * quotes[lang].length));
       setCurrentStatusIndex(0);
-
       interval = setInterval(() => {
         setCurrentQuoteIndex(Math.floor(Math.random() * quotes[lang].length));
         setCurrentStatusIndex(prev => (prev + 1) % statusMessages[lang].length);
@@ -124,19 +116,16 @@ const App: React.FC = () => {
     }
     return () => clearInterval(interval);
   }, [isSynthesizing, lang]);
-
   useEffect(() => {
     if (axioms.length > 0 && carouselRef.current) {
       carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
     }
   }, [axioms]);
-
   const handleSynthesis = async (base64: string, currentLang: Language) => {
     setIsSynthesizing(true);
     setError(null);
     setAxioms([]);
     setFlowStep('axioms');
-
     try {
       const extracted = await extractAxioms(base64, currentLang);
       if (extracted && extracted.length > 0) {
@@ -146,14 +135,16 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Synthesis error:", err);
-      let errorMsg = currentLang === 'ar' ? "فشل التحليل العصبي للمخطوط." : "Synthesis failed.";
+      // عرض تفاصيل الخطأ الفعلية لأغراض التصحيح
+      let errorMsg = currentLang === 'ar' ?
+        `فشل التحليل: ${err.message || "خطأ غير معروف"}` :
+        `Synthesis Error: ${err.message || "Unknown Error"}`;
       setError(errorMsg);
       setPdf(null);
     } finally {
       setIsSynthesizing(false);
     }
   };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -161,7 +152,6 @@ const App: React.FC = () => {
       setError(lang === 'ar' ? "يرجى رفع ملف PDF فقط." : "Please upload a PDF file only.");
       return;
     }
-
     const reader = new FileReader();
     reader.onload = async () => {
       const result = reader.result as string;
@@ -171,7 +161,6 @@ const App: React.FC = () => {
     };
     reader.readAsDataURL(file);
   };
-
   const handleNewChat = () => {
     setPdf(null);
     setAxioms([]);
@@ -179,7 +168,6 @@ const App: React.FC = () => {
     setShowViewer(false);
     setError(null);
   };
-
   return (
     <div className={`fixed inset-0 flex flex-col bg-[#020202] text-white overflow-hidden ${lang === 'ar' ? 'rtl font-academic' : 'ltr font-sans'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <style>{`
@@ -201,20 +189,16 @@ const App: React.FC = () => {
           to { background-position: 200% center; }
         }
       `}</style>
-
       {isSynthesizing && (
         <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-1000">
           <div className="spinner-arc mb-16 w-24 h-24 border-t-orange-600"></div>
-
           {/* نص الحالة التقنية */}
           <div className="mb-4 h-6">
             <p className="text-orange-500/60 text-[10px] font-black tracking-[0.4em] uppercase animate-pulse">
               {statusMessages[lang][currentStatusIndex]}
             </p>
           </div>
-
           <h2 className="text-white text-xl font-black tracking-[0.6em] mb-12 uppercase opacity-30">{t.synthesis}</h2>
-
           <div className="h-32 flex items-center justify-center">
             <p key={currentQuoteIndex} className="shining-quote text-xl md:text-3xl font-medium italic max-w-3xl leading-relaxed px-6">
               {quotes[lang][currentQuoteIndex]}
@@ -222,7 +206,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -230,7 +213,6 @@ const App: React.FC = () => {
         setLang={setLang}
         onNewChat={handleNewChat}
       />
-
       <header className="h-14 md:h-16 px-4 md:px-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-3xl z-[60] shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
@@ -238,7 +220,6 @@ const App: React.FC = () => {
           </button>
           <h1 className="text-[10px] font-black tracking-[0.4em] text-white/40 uppercase hidden sm:block">{translations.en.title}</h1>
         </div>
-
         {pdf && (
           <button
             onClick={() => setShowViewer(!showViewer)}
@@ -249,7 +230,6 @@ const App: React.FC = () => {
           </button>
         )}
       </header>
-
       <main className="flex-1 overflow-hidden relative z-10 flex flex-col">
         {!pdf ? (
           <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-center touch-auto" dir="ltr">
@@ -309,7 +289,6 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-
             {showViewer && (
               <div className={`fixed inset-0 lg:relative lg:inset-auto lg:w-1/2 bg-black z-[70] lg:z-10 animate-in slide-in-from-right duration-500 border-l border-white/10 flex flex-col shadow-[-20px_0_50px_rgba(0,0,0,0.8)] overflow-hidden`}>
                 <div className="flex lg:hidden items-center justify-between p-4 bg-[#1a1a1a] border-b border-white/10">
@@ -327,5 +306,4 @@ const App: React.FC = () => {
     </div>
   );
 };
-
 export default App;
