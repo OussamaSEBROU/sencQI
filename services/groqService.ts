@@ -1,8 +1,9 @@
 import Groq from "groq-sdk";
 import * as pdfjsLib from "pdfjs-dist";
 import { Axiom, Language } from "../types";
-// تهيئة worker لـ PDF.js برابط ثابت وموثوق
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.worker.min.js`;
+// تعطيل الـ Worker لتجنب مشاكل CORS - سيعمل بشكل أبطأ قليلاً لكنه موثوق
+// @ts-ignore
+pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 // --- Types for local state ---
 interface ChatSession {
     history: Array<{ role: "system" | "user" | "assistant"; content: string }>;
@@ -49,7 +50,7 @@ export const getGroqClient = () => {
 // استخدام نموذج نصي قوي للتحليل
 const MODEL_NAME = "meta-llama/llama-4-maverick-17b-128e-instruct";
 /**
- * استخراج النص من PDF باستخدام pdf.js
+ * استخراج النص من PDF باستخدام pdf.js بدون Worker
  */
 const extractTextFromPDF = async (pdfBase64: string): Promise<string> => {
     try {
@@ -59,8 +60,13 @@ const extractTextFromPDF = async (pdfBase64: string): Promise<string> => {
         for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
         }
-        // تحميل PDF
-        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        // تحميل PDF بدون Worker
+        const loadingTask = pdfjsLib.getDocument({
+            data: bytes,
+            useWorkerFetch: false,
+            isEvalSupported: false,
+            useSystemFonts: true
+        });
         const pdf = await loadingTask.promise;
         let fullText = "";
         // استخراج النص من كل صفحة
@@ -72,10 +78,13 @@ const extractTextFromPDF = async (pdfBase64: string): Promise<string> => {
                 .join(" ");
             fullText += pageText + "\n\n";
         }
+        if (!fullText.trim()) {
+            throw new Error("PDF_EMPTY_OR_SCANNED");
+        }
         return fullText.trim();
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error extracting text from PDF:", error);
-        throw new Error("PDF_TEXT_EXTRACTION_FAILED");
+        throw new Error(`PDF_TEXT_EXTRACTION_FAILED: ${error.message || 'Unknown error'}`);
     }
 };
 /**
