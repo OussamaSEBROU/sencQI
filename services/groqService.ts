@@ -1,8 +1,8 @@
 import Groq from "groq-sdk";
 import * as pdfjsLib from "pdfjs-dist";
 import { Axiom, Language } from "../types";
-// تهيئة worker لـ PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// تهيئة worker لـ PDF.js برابط ثابت وموثوق
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.worker.min.js`;
 // --- Types for local state ---
 interface ChatSession {
     history: Array<{ role: "system" | "user" | "assistant"; content: string }>;
