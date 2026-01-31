@@ -1,4 +1,5 @@
 
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
@@ -7,8 +8,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // تمرير API_KEY فقط بدلاً من كامل process.env لتجنب أخطاء البناء
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // تمرير GROQ_API_KEY للتطبيق
+      'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY)
     },
     build: {
       outDir: 'dist',
